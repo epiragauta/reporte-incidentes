@@ -1,0 +1,40 @@
+<!DOCTYPE html>
+<html lang="es">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tablero de Control - Incidentes Colombia</title>
+    <!-- Leaflet CSS -->
+    <link rel="stylesheet" href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" integrity="sha256-p4NxAoJBhIIN+hmNHrzRCf9tD/miZyoHS5obTRR9BMY=" crossorigin=""/>
+    <style>
+        body { font-family: Arial, sans-serif; margin: 0; padding: 0; }
+        #header { background-color: #333; color: white; padding: 15px; text-align: center; }
+        #map { height: 80vh; width: 100%; }
+        #controls { padding: 15px; text-align: center; }
+        .incident-popup { max-width: 250px; }
+    </style>
+</head>
+<body>
+
+    <div id="header">
+        <h1>Incidentes de Seguridad - Colombia</h1>
+    </div>
+
+    <div id="controls">
+        <label for="filter">Filtrar por tiempo:</label>
+        <select id="filter" onchange="loadIncidents()">
+            <option value="hours=24">Últimas 24 horas</option>
+            <option value="days=7">Última semana</option>
+            <option value="months=1">Último mes</option>
+            <option value="months=12">Último año</option>
+        </select>
+        <button onclick="loadIncidents()">Actualizar</button>
+    </div>
+
+    <div id="map"></div>
+
+    <!-- Leaflet JS -->
+    <script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js" integrity="sha256-20nQCchB9co0qIjJZRGuk2/Z9VM+kNiyxNV1lvTlZBo=" crossorigin=""></script>
+    <script src="dashboard.js"></script>
+</body>
+</html>
