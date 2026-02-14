@@ -8,7 +8,7 @@ Plataforma para registrar y visualizar incidentes de seguridad y orden público 
 |:-----------|:------:|:------------|
 | Backend API | Implementado | API REST con Node.js/Express, autenticación JWT y base de datos SQLite |
 | Dashboard Web | Implementado | Mapa interactivo con Leaflet.js, filtros temporales y visualización de incidentes |
-| Aplicación Móvil | Pendiente | App para Android con React Native (opción preferida) o desarrollo nativo |
+| Aplicación Móvil | Implementado | App React Native con Expo, mapa interactivo, reporte con GPS y autenticación |
 
 ## Tabla de Contenidos
 
@@ -41,13 +41,13 @@ Plataforma para registrar y visualizar incidentes de seguridad y orden público 
 - **API REST** para integración con clientes web y móviles.
 - **Base de datos SQLite** para persistencia ligera sin necesidad de servidor de base de datos externo.
 
-### Aplicación Móvil (Pendiente de implementación)
+### Aplicación Móvil (Implementado)
 
-- **Reporte desde el dispositivo**: envío de incidentes directamente desde el celular con captura automática de ubicación GPS.
-- **Inicio de sesión con Google**: autenticación nativa integrada con Google Sign-In.
-- **Mapa interactivo móvil**: visualización de incidentes cercanos con marcadores sobre el mapa.
-- **Modo offline** (deseable): capacidad de registrar reportes sin conexión y sincronizar cuando haya red.
-- **Notificaciones push** (deseable): alertas de incidentes cercanos a la ubicación del usuario.
+- **Reporte desde el dispositivo**: envío de incidentes directamente desde el celular con captura automática de ubicación GPS vía `expo-location`.
+- **Inicio de sesión con Google**: autenticación integrada con Google Sign-In (simulada para demo) y persistencia de sesión con AsyncStorage.
+- **Mapa interactivo móvil**: visualización de incidentes con marcadores coloreados por estado de verificación usando `react-native-maps`.
+- **Filtros temporales**: 24 horas, 7 días, 1 mes, 1 año.
+- **Navegación nativa**: flujo Auth → Map → Report con React Navigation.
 
 ## Arquitectura
 
@@ -88,16 +88,17 @@ Plataforma para registrar y visualizar incidentes de seguridad y orden público 
 | Frontend dashboard | HTML5, CSS3, JavaScript vanilla |
 | Verificación | Playwright (Python) |
 
-### Aplicación Móvil (Planificado)
+### Aplicación Móvil (Implementado)
 
-| Componente | Tecnología (preferida) | Alternativa |
-|:-----------|:----------------------|:------------|
-| Framework | React Native con Expo | Android nativo (Kotlin/Java) |
-| Mapas | React Native Maps | Google Maps SDK para Android |
-| Geolocalización | Expo Location | Android Location Services |
-| Cliente HTTP | Axios | Retrofit (nativo) |
-| Autenticación | Expo AuthSession / Google Sign-In | Google Sign-In para Android |
-| Pruebas | Jest + React Test Renderer | JUnit + Espresso |
+| Componente | Tecnología |
+|:-----------|:-----------|
+| Framework | React Native 0.76 con Expo SDK 52 |
+| Mapas | React Native Maps 1.20 |
+| Geolocalización | Expo Location |
+| Cliente HTTP | Axios |
+| Navegación | React Navigation (Native Stack) |
+| Almacenamiento local | AsyncStorage |
+| Pruebas | Jest + React Testing Library Native |
 
 ## Inicio Rápido
 
@@ -111,13 +112,15 @@ node server.js
 
 Abre `http://localhost:3000` en tu navegador para ver el dashboard con el mapa.
 
-### Aplicación Móvil (cuando esté implementada)
+### Aplicación Móvil
 
 ```bash
 cd mobile
 npm install
 npx expo start
 ```
+
+Presiona `a` para abrir en el emulador Android o escanea el QR con Expo Go.
 
 ## Instalación
 
@@ -163,8 +166,6 @@ npx expo start
 5. Accede al dashboard web en `http://localhost:3000/index.html`.
 
 ### 2. Configuración de la Aplicación Móvil
-
-> **Nota:** La aplicación móvil aún no está implementada. Las siguientes instrucciones aplican para cuando el módulo `mobile/` esté disponible.
 
 1. Navega al directorio de la app móvil:
     ```bash
@@ -361,22 +362,26 @@ reporte-incidentes/
 │   └── public/               # Dashboard web (archivos estáticos)
 │       ├── index.html        # Página principal del dashboard
 │       └── dashboard.js      # Lógica del mapa y carga de incidentes
-├── mobile/                   # ⏳ Aplicación móvil (pendiente)
-│   ├── App.js                # Punto de entrada de la app
+├── mobile/                   # Aplicación móvil React Native
+│   ├── App.js                # Punto de entrada y navegación
+│   ├── app.json              # Configuración de Expo
 │   ├── package.json          # Dependencias de la app móvil
+│   ├── jest.setup.js         # Configuración de mocks para tests
 │   ├── src/
-│   │   ├── screens/          # Pantallas (Auth, Map, Report)
-│   │   │   ├── AuthScreen.js
-│   │   │   ├── MapScreen.js
-│   │   │   └── ReportScreen.js
-│   │   └── services/         # Lógica de conexión a la API
-│   │       └── api.js
-│   └── __tests__/            # Pruebas de componentes
+│   │   ├── screens/          # Pantallas de la app
+│   │   │   ├── AuthScreen.js   # Login Google / anónimo
+│   │   │   ├── MapScreen.js    # Mapa con incidentes y filtros
+│   │   │   └── ReportScreen.js # Formulario de reporte con GPS
+│   │   └── services/         # Capa de servicios
+│   │       └── api.js          # Cliente HTTP y funciones de API
+│   └── __tests__/            # Pruebas (24 tests)
+│       ├── api.test.js
+│       ├── AuthScreen.test.js
+│       ├── MapScreen.test.js
+│       └── ReportScreen.test.js
 └── verification/
     └── verify_dashboard.py   # Script de verificación con Playwright
 ```
-
-> Los elementos marcados con ⏳ están pendientes de implementación.
 
 ## Esquema de Base de Datos
 
@@ -413,14 +418,18 @@ npm test
 
 > **Nota:** Las pruebas automatizadas del backend están pendientes de implementación. Actualmente se usa un script de verificación con Playwright (ver sección siguiente).
 
-### Aplicación Móvil
+### Aplicación Móvil (24 tests)
 
 ```bash
 cd mobile
 npm test
 ```
 
-> **Nota:** Disponible cuando la aplicación móvil esté implementada. Se recomienda Jest + React Test Renderer para React Native, o JUnit + Espresso para Android nativo.
+Incluye tests para:
+- **api.test.js** — Login, reporte de incidentes, consulta, logout, almacenamiento de sesión.
+- **AuthScreen.test.js** — Renderizado, auto-redirect, navegación anónima, flujo de login.
+- **MapScreen.test.js** — Mapa, filtros, conteo de incidentes, navegación, logout.
+- **ReportScreen.test.js** — Formulario, GPS, envío autenticado/anónimo, cancelación, contador de caracteres.
 
 ## Verificación
 
@@ -454,10 +463,11 @@ Este proyecto es una **demostración** y **no está listo para producción**. Co
 
 ### Áreas donde se necesita contribución
 
-- **Aplicación móvil**: Implementación del cliente React Native o Android nativo (ver [Tecnologías planificadas](#aplicación-móvil-planificado)).
-- **Pruebas automatizadas**: Suite de tests para el backend con Jest + Supertest.
-- **Autenticación real**: Integración con Google OAuth verificado.
+- **Pruebas del backend**: Suite de tests con Jest + Supertest.
+- **Autenticación real**: Integración con Google OAuth verificado (reemplazar mock actual).
 - **Rate limiting**: Protección contra abuso de la API.
+- **Modo offline móvil**: Almacenamiento local de reportes para sincronización posterior.
+- **Notificaciones push**: Alertas de incidentes cercanos al usuario.
 
 ## Licencia
 
