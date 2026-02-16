@@ -364,7 +364,13 @@ curl http://localhost:3000/api/incidents?hours=24
 ```
 reporte-incidentes/
 ├── README.md
-├── docker-compose.yml        # Orquestación Docker del backend
+├── docker-compose.yml        # Orquestación Docker (backend + nginx + certbot)
+├── init-letsencrypt.sh       # Script de inicialización de certificados SSL
+├── nginx/
+│   └── default.conf          # Configuración Nginx (reverse proxy + SSL)
+├── certbot/                  # Certificados y challenges (generado)
+│   ├── conf/                 # Certificados Let's Encrypt
+│   └── www/                  # Directorio del challenge ACME
 ├── backend/
 │   ├── package.json          # Dependencias y scripts del backend
 │   ├── server.js             # Punto de entrada del servidor y rutas de la API
@@ -460,32 +466,91 @@ Este script verifica que el dashboard cargue correctamente, incluyendo el encabe
 
 ## Despliegue con Docker
 
-### Construcción y ejecución
+### Arquitectura de contenedores
+
+```
+                    ┌──────────────┐
+    Puerto 80/443   │    Nginx     │   Reverse proxy
+   ─────────────────│  (Alpine)    │   + SSL termination
+                    └──────┬───────┘
+                           │ proxy_pass :3000
+                    ┌──────┴───────┐
+                    │   Backend    │   API + Dashboard
+                    │  (Node 22)  │
+                    └──────┬───────┘
+                           │
+                    ┌──────┴───────┐
+                    │   SQLite     │   Volumen persistente
+                    └──────────────┘
+
+    ┌──────────────┐
+    │   Certbot    │   Renovación automática cada 12h
+    └──────────────┘
+```
+
+### Despliegue en `incidencias.skaphe.com`
+
+**Prerrequisitos en el servidor:**
+- Docker Engine 20+ y Docker Compose v2
+- DNS del dominio `incidencias.skaphe.com` apuntando a la IP del servidor
+- Puertos 80 y 443 abiertos en el firewall
+
+**1. Clonar y configurar:**
 
 ```bash
-# Construir y levantar el servicio
-docker compose up -d
+git clone <url-del-repositorio>
+cd reporte-incidentes
 
-# Ver logs
-docker compose logs -f backend
-
-# Detener
-docker compose down
+# Configurar variables de entorno
+cat > .env << 'EOF'
+JWT_SECRET=tu_clave_secreta_segura_aqui
+CERTBOT_EMAIL=tu@email.com
+EOF
 ```
+
+**2. Obtener certificado SSL (solo la primera vez):**
+
+```bash
+chmod +x init-letsencrypt.sh
+./init-letsencrypt.sh
+```
+
+El script automáticamente:
+1. Genera un certificado temporal auto-firmado
+2. Arranca Nginx para responder al challenge HTTP de Let's Encrypt
+3. Solicita el certificado real vía Certbot
+4. Recarga Nginx con el certificado válido
+
+**3. Levantar todos los servicios:**
+
+```bash
+docker compose up -d
+```
+
+La aplicación estará disponible en `https://incidencias.skaphe.com`.
+
+> Para probar sin gastar intentos de Let's Encrypt, usa `STAGING=1 ./init-letsencrypt.sh` (genera un certificado de prueba no válido para navegadores).
 
 ### Variables de entorno
 
 | Variable | Descripción | Valor por defecto |
 |:---------|:------------|:------------------|
-| `PORT` | Puerto externo expuesto | `3000` |
 | `JWT_SECRET` | Clave secreta para firmar tokens JWT | `super_secret_key_change_me` |
 | `DATABASE_PATH` | Ruta de la BD SQLite dentro del contenedor | `/data/incidents.db` |
+| `CERTBOT_EMAIL` | Email para avisos de expiración de Let's Encrypt | _(sin email)_ |
 
-Para personalizar las variables, crea un archivo `.env` en la raíz del proyecto:
+### Renovación de certificados
 
-```env
-JWT_SECRET=tu_clave_secreta_segura_aqui
-PORT=8080
+La renovación es **automática**:
+- El contenedor `certbot` intenta renovar cada 12 horas
+- Solo renueva si faltan menos de 30 días para la expiración
+- `nginx` recarga su configuración cada 6 horas para tomar los certificados nuevos
+
+Para forzar una renovación manual:
+
+```bash
+docker compose run --rm certbot renew --force-renewal
+docker compose exec nginx nginx -s reload
 ```
 
 ### Persistencia de datos
@@ -501,19 +566,18 @@ docker compose exec backend cp /data/incidents.db /data/backup.db
 docker cp $(docker compose ps -q backend):/data/backup.db ./backup_incidents.db
 ```
 
-### Imagen standalone (sin Compose)
+### Desarrollo local (sin SSL)
+
+Para desarrollo local sin Nginx ni Certbot, ejecuta solo el backend:
 
 ```bash
-# Construir
-docker build -t incident-reporter-backend ./backend
+docker compose up -d backend
+```
 
-# Ejecutar
-docker run -d \
-  --name incident-reporter \
-  -p 3000:3000 \
-  -e JWT_SECRET=mi_clave_secreta \
-  -v incident-data:/data \
-  incident-reporter-backend
+O directamente sin Docker:
+
+```bash
+cd backend && npm install && node server.js
 ```
 
 ## Advertencias de Seguridad
