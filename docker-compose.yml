@@ -1,0 +1,17 @@
+services:
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+    ports:
+      - "${PORT:-3000}:3000"
+    environment:
+      - PORT=3000
+      - JWT_SECRET=${JWT_SECRET:-super_secret_key_change_me}
+      - DATABASE_PATH=/data/incidents.db
+    volumes:
+      - incident-data:/data
+    restart: unless-stopped
+
+volumes:
+  incident-data:

@@ -102,7 +102,15 @@ Plataforma para registrar y visualizar incidentes de seguridad y orden público 
 
 ## Inicio Rápido
 
-### Backend y Dashboard Web
+### Con Docker (recomendado para despliegue)
+
+```bash
+docker compose up -d
+```
+
+El backend y dashboard estarán en `http://localhost:3000`. Los datos se persisten en un volumen Docker.
+
+### Sin Docker (desarrollo local)
 
 ```bash
 cd backend
@@ -126,7 +134,10 @@ Presiona `a` para abrir en el emulador Android o escanea el QR con Expo Go.
 
 ### Prerrequisitos
 
-**Para el Backend:**
+**Para despliegue con Docker:**
+- Docker Engine 20+ y Docker Compose v2
+
+**Para desarrollo local del Backend:**
 - Node.js (v18 o superior recomendado)
 - npm
 
@@ -353,11 +364,14 @@ curl http://localhost:3000/api/incidents?hours=24
 ```
 reporte-incidentes/
 ├── README.md
+├── docker-compose.yml        # Orquestación Docker del backend
 ├── backend/
 │   ├── package.json          # Dependencias y scripts del backend
 │   ├── server.js             # Punto de entrada del servidor y rutas de la API
 │   ├── database.js           # Configuración de SQLite e inicialización de tablas
 │   ├── init_db.js            # Script para verificar inicialización de la BD
+│   ├── Dockerfile            # Imagen Docker para despliegue
+│   ├── .dockerignore         # Archivos excluidos del build Docker
 │   ├── incidents.db          # Archivo de base de datos SQLite (generado)
 │   └── public/               # Dashboard web (archivos estáticos)
 │       ├── index.html        # Página principal del dashboard
@@ -444,11 +458,69 @@ Este script verifica que el dashboard cargue correctamente, incluyendo el encabe
 
 > **Nota:** Requiere Python y Playwright instalados (`pip install playwright && playwright install`).
 
+## Despliegue con Docker
+
+### Construcción y ejecución
+
+```bash
+# Construir y levantar el servicio
+docker compose up -d
+
+# Ver logs
+docker compose logs -f backend
+
+# Detener
+docker compose down
+```
+
+### Variables de entorno
+
+| Variable | Descripción | Valor por defecto |
+|:---------|:------------|:------------------|
+| `PORT` | Puerto externo expuesto | `3000` |
+| `JWT_SECRET` | Clave secreta para firmar tokens JWT | `super_secret_key_change_me` |
+| `DATABASE_PATH` | Ruta de la BD SQLite dentro del contenedor | `/data/incidents.db` |
+
+Para personalizar las variables, crea un archivo `.env` en la raíz del proyecto:
+
+```env
+JWT_SECRET=tu_clave_secreta_segura_aqui
+PORT=8080
+```
+
+### Persistencia de datos
+
+Los datos de SQLite se almacenan en un volumen Docker llamado `incident-data`. Esto garantiza que los datos sobrevivan reinicios del contenedor.
+
+```bash
+# Ver volúmenes
+docker volume ls
+
+# Backup de la base de datos
+docker compose exec backend cp /data/incidents.db /data/backup.db
+docker cp $(docker compose ps -q backend):/data/backup.db ./backup_incidents.db
+```
+
+### Imagen standalone (sin Compose)
+
+```bash
+# Construir
+docker build -t incident-reporter-backend ./backend
+
+# Ejecutar
+docker run -d \
+  --name incident-reporter \
+  -p 3000:3000 \
+  -e JWT_SECRET=mi_clave_secreta \
+  -v incident-data:/data \
+  incident-reporter-backend
+```
+
 ## Advertencias de Seguridad
 
 Este proyecto es una **demostración** y **no está listo para producción**. Considera lo siguiente antes de desplegar:
 
-- **JWT Secret hardcodeado**: La clave `SECRET_KEY` está en texto plano en `server.js`. En producción debe ser una variable de entorno con un valor aleatorio seguro.
+- **JWT Secret**: Configura `JWT_SECRET` como variable de entorno con un valor aleatorio seguro. No uses el valor por defecto en producción.
 - **OAuth simulado**: La autenticación con Google no verifica tokens reales. En producción debe integrarse con la API de verificación de Google.
 - **CORS abierto**: El servidor acepta peticiones de cualquier origen (`*`). Restringir a dominios confiables en producción.
 - **Sin rate limiting**: No hay protección contra abuso de la API. Considerar implementar limitación de tasa.
